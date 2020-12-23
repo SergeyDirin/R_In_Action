@@ -1,16 +1,54 @@
+---
+title: "R in Action Regression Chapter 8"
+output: html_notebook
+---
+
+Running the Model
+
+```{r}
+fit <- lm(formula, data)
+```
+
+formula
+Y ~ X1 + X2 + ... + Xk
+
+interaction between predictor variables
+y ~ x + z + x:z
+
+all possible interactions
+y ~ x * z * w 
+same as
+y ~ x + z + w + x:z + x:w + z:w + x:z:w
+
+interactions up to a specified degree
+y ~ (x + z + w)^2
+same as
+y ~ x + z + w + x:z + x:w + z:w
+
+all other variables in the data frame except the dependent variable
+y ~ .
+same as
+y ~ x + z + w
+
+removes a variable from the equation
+y ~ (x + z + w)^2 – x:w
+same as
+y ~ x + z + w + x:z + z:w
+
+Suppresses the intercept. forces the line through the origin at x=0
+y ~ x -1
+
+interpreted arithmetically
+y ~ x + I((z + w)^2)
+same as 
+y ~ x + h
+where h = (z + w)^2
 
 
+```{r}
 fit <- lm(weight ~ height, data=women)
-
 summary(fit)
 
-head(women)
-?women
-
-women$weight
-fitted(fit)
-
-residuals(fit)
 plot(women$height,women$weight,
      xlab="Height (in inches)",
      ylab="Weight (in pounds)")
@@ -22,7 +60,6 @@ plot(women$height,women$weight,
      xlab="Height (in inches)",
      ylab="Weight (in lbs)")
 lines(women$height,fitted(fit2))
-
 
 library(car)
 scatterplot(weight ~ height, data=women,
@@ -81,20 +118,25 @@ fit <- lm(Murder ~ Population + Illiteracy + Income + Frost, data=states)
 par(mfrow=c(2,2))
 plot(fit)
 
+```
+
+# Diagnostics
+
+## Checking Normality
+
+```{r}
 par(mfrow=c(1,1))
 
 library(car)
 states <- as.data.frame(state.x77[,c("Murder", "Population",
                                      "Illiteracy", "Income", "Frost")])
 fit <- lm(Murder ~ Population + Illiteracy + Income + Frost, data=states)
-?qqPlot(fit, labels=row.names(states), id.method="identify",
+qqPlot(fit, labels=row.names(states), id.method="identify",
        simulate=TRUE, main="Q-Q Plot")
 states["Nevada",]
 fitted(fit)["Nevada"]
 residuals(fit)["Nevada"]
 
-
-#Checking if error is in normal distribution
 residplot <- function(fit, nbreaks=10) {
   z <- rstudent(fit)
   hist(z, breaks=nbreaks, freq=FALSE,
@@ -111,27 +153,54 @@ residplot <- function(fit, nbreaks=10) {
 }
 residplot(fit)
 
+```
+
+
+# Checking Independence
+
+```{r}
 durbinWatsonTest(fit)
+```
+# Checking Linearity
+
+```{r}
+crPlots(fit)
+```
 
 
+# Checking Variance
+```{r}
 crPlots(fit)
 
 ncvTest(fit)
 spreadLevelPlot(fit)
+```
 
 
-install.packages("gvlma")
+# Global validation of Linear Model
+```{r}
+#install.packages("gvlma")
 library(gvlma)
 gvmodel <- gvlma(fit)
 summary(gvmodel)
+```
 
+# Checking Multicollinearity
+```{r}
 vif(fit)
 
 sqrt(vif(fit)) > 2 # problem?
+```
 
-
+# Outliers
+Unusually large residuals (Yi - Yi^)
+```{r}
 outlierTest(fit)
+```
 
+# High-leverage points
+unusual vars
+```{r}
 hat.plot <- function(fit) {
   p <- length(coefficients(fit))
   n <- length(fitted(fit))
@@ -145,9 +214,11 @@ cutoff <- 4/(nrow(states)-length(fit$coefficients)-2)
 plot(fit, which=4, cook.levels=cutoff)
 abline(h=cutoff, lty=2, col="red")
 
+avPlots(fit, ask=FALSE)
+```
 
-avPlots(fit, ask=FALSE, id.method="identify")
-
+# Checking if Transformation is needed
+```{r}
 influencePlot(fit, id.method="identify", main="Influence Plot",
               sub="Circle size is proportional to Cook's distance")
 
@@ -155,10 +226,11 @@ influencePlot(fit, id.method="identify", main="Influence Plot",
 summary(powerTransform(states$Murder))
 
 boxTidwell(Murder~Population+Illiteracy,data=states)
+```
 
 
-
-
+# Comparing Models
+```{r}
 states <- as.data.frame(state.x77[,c("Murder", "Population",
                                      "Illiteracy", "Income", "Frost")])
 fit1 <- lm(Murder ~ Population + Illiteracy + Income + Frost,
@@ -167,17 +239,22 @@ fit2 <- lm(Murder ~ Population + Illiteracy, data=states)
 anova(fit2, fit1)
 
 AIC(fit1,fit2)
+```
 
+
+# stepwise regression
+```{r}
 library(MASS)
 states <- as.data.frame(state.x77[,c("Murder", "Population",
                                      "Illiteracy", "Income", "Frost")])
 fit <- lm(Murder ~ Population + Illiteracy + Income + Frost,
           data=states)
 stepAIC(fit, direction="backward")
+```
 
-
-
-install.packages("leaps")
+# Checking all combinations of vars
+```{r}
+#install.packages("leaps")
 library(leaps)
 states <- as.data.frame(state.x77[,c("Murder", "Population",
                                      "Illiteracy", "Income", "Frost")])
@@ -188,8 +265,11 @@ library(car)
 subsets(leaps, statistic="cp",
         main="Cp Plot for All Subsets Regression")
 abline(1,1,lty=2,col="red")
+```
 
 
+# Checking the consistency of predictions
+```{r}
 shrinkage <- function(fit, k=10){
   require(bootstrap)
   theta.fit <- function(x,y){lsfit(x,y)}
@@ -203,16 +283,22 @@ shrinkage <- function(fit, k=10){
   cat(k, "Fold Cross-Validated R-square =", r2cv, "\n")
   cat("Change =", r2-r2cv, "\n")
 }
+```
 
 
-install.packages("bootstrap")
+# Checking the change of R-squared by building model on random selections of the data
+```{r}
+#install.packages("bootstrap")
 library(bootstrap)
 states <- as.data.frame(state.x77[,c("Murder", "Population",
                                      "Illiteracy", "Income", "Frost")])
 fit <- lm(Murder ~ Population + Income + Illiteracy + Frost, data=states)
 shrinkage(fit)
+```
 
+# Ranking the vars
 
+```{r}
 states <- as.data.frame(state.x77[,c("Murder", "Population",
                                      "Illiteracy", "Income", "Frost")])
 zstates <- as.data.frame(scale(states))
@@ -249,12 +335,11 @@ relweights <- function(fit,...){
 }
 
 relweights(fit)
-  
-  
-  
-  
-  
-  
-  
-  
-  
+```
+
+
+
+
+
+
+
